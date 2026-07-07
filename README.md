@@ -1,0 +1,87 @@
+# 🐾 장꾸 (Jjanggu)
+
+Windows **작업표시줄 위에서 살아가는 픽셀아트 포메라니안 데스크톱 펫**입니다.
+
+작업표시줄을 따라 걷고, 앉고, 졸다가 — 클릭하면 채팅창이 열립니다.
+장꾸는 **Gemini 3.5 Flash**로 대화하며, 부탁하면 제한된 범위 안에서 컴퓨터도 조작해 줍니다.
+
+> 페르소나: 자기가 세상에서 제일 귀엽다는 걸 아주 잘 아는, 자존심 높은 크림색 포메라니안.
+> 주인을 "집사"라고 부르는 도도한 츤데레지만 결국은 다 도와줍니다. 멍!
+
+![디자인 시트](assets/design_sheet.png)
+
+## 기능
+
+- **작업표시줄 위 생활**: 작업표시줄 상단을 바닥 삼아 걷기/앉기/대기/잠자기를 랜덤하게 오갑니다.
+- **드래그**: 마우스로 집어 옮길 수 있고(깜짝 놀람), 놓으면 다시 작업표시줄로 돌아갑니다.
+- **채팅**: 장꾸를 클릭하면 말풍선 채팅창이 열립니다. 생각 중엔 🤔 포즈, 대답할 땐 말하는 포즈.
+- **제한적인 컴퓨터 제어** (화이트리스트, 임의 명령 실행 없음):
+  - 앱 열기(메모장·계산기·그림판·탐색기·설정 등), 웹사이트 열기, 웹 검색
+  - 볼륨 조절, 음소거, 미디어 재생/일시정지/곡 넘기기
+  - 현재 시각·배터리·CPU·메모리 알려주기, 스크린샷 저장
+  - 모든 창 최소화, 화면 잠금, 절전 (잠금/절전은 실행 전 확인 창을 띄움)
+- **시스템 트레이**: 채팅 열기 / 재우기 / 설정 / 종료
+
+## 설치 및 실행 (Windows)
+
+1. [Python 3.10+](https://www.python.org/downloads/) 설치 (설치 시 "Add python.exe to PATH" 체크)
+2. 이 저장소를 내려받고 폴더에서:
+
+   ```bat
+   pip install -r requirements.txt
+   python main.py
+   ```
+
+3. 첫 실행 시 설정 창이 뜹니다. [Google AI Studio](https://aistudio.google.com/apikey)에서
+   무료 Gemini API 키를 발급받아 붙여넣으세요.
+   (환경변수 `GEMINI_API_KEY`로 설정해도 됩니다.)
+
+## 사용법
+
+| 조작 | 동작 |
+| --- | --- |
+| 장꾸 왼쪽 클릭 | 채팅창 열기/닫기 |
+| 장꾸 드래그 | 위치 옮기기 (놓으면 작업표시줄로 복귀) |
+| 장꾸 오른쪽 클릭 | 메뉴 (채팅/재우기/설정/종료) |
+| 트레이 아이콘 클릭 | 채팅창 열기/닫기 |
+
+채팅 예시: "볼륨 30으로 해줘", "지금 몇 시야? 배터리는?", "유튜브 열어줘",
+"스크린샷 찍어줘", "창 다 최소화해", "노래 다음 곡으로 넘겨줘"
+
+## 설정
+
+- 설정 파일: `%APPDATA%\Jjanggu\config.json` (API 키, 모델, 크기)
+- 기본 모델: `gemini-3.5-flash` — 설정 창에서 다른 Gemini 모델로 바꿀 수 있습니다.
+
+## 실행 파일(.exe)로 만들기 (선택)
+
+```bat
+pip install pyinstaller
+pyinstaller --noconsole --name Jjanggu --add-data "assets;assets" main.py
+```
+
+`dist\Jjanggu\Jjanggu.exe` 가 생성됩니다.
+
+## 프로젝트 구조
+
+```
+main.py                  실행 진입점
+jjanggu/
+  behavior.py            자율 행동 상태머신 (걷기/앉기/잠자기 + 채팅 포즈)
+  pet_window.py          투명 최상위 펫 창 + 게임 루프
+  taskbar.py             작업표시줄 상단(바닥) 좌표 계산
+  sprites.py             포즈별 스프라이트 로드/반전 캐시
+  chat_window.py         말풍선 채팅 UI (LLM 호출은 워커 스레드)
+  llm.py                 Gemini 클라이언트 + 장꾸 페르소나
+  tools.py               화이트리스트 컴퓨터 제어 도구 (function calling)
+  confirm.py             잠금/절전 전 확인 다이얼로그 브리지
+  tray.py                시스템 트레이 + 설정 다이얼로그
+  config.py              설정 저장/로드
+scripts/extract_sprites.py   디자인 시트에서 스프라이트 추출 (개발용)
+assets/sprites/          추출된 투명 PNG 포즈 8종
+```
+
+## 참고
+
+- 스프라이트 원본은 `assets/design_sheet.png` 디자인 시트에서 추출했습니다.
+- macOS/Linux에서도 실행은 되지만(화면 하단에 위치) 컴퓨터 제어 도구는 Windows 전용입니다.
