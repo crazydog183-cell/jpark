@@ -19,20 +19,29 @@ SHEET = ROOT / "assets" / "design_sheet.png"
 OUT_DIR = ROOT / "assets" / "sprites"
 
 # 포즈 이름 -> (left, top, right, bottom) 크롭 박스 (시트 원본 좌표)
+# 몸통/장식(놀람 효과선, 꼬리 흔들림 선)이 잘리지 않게 여유 있게 잡는다.
 BOXES = {
-    "idle": (748, 88, 948, 328),
+    "idle": (742, 88, 950, 328),
     "sitting": (980, 90, 1150, 328),
-    "walking": (1188, 100, 1408, 328),
-    "thinking": (742, 398, 862, 598),
-    "talking": (958, 415, 1092, 598),
-    "sleeping": (1195, 390, 1400, 600),
-    "surprised": (733, 640, 932, 838),
-    "happy": (1000, 645, 1240, 838),
+    "walking": (1182, 100, 1410, 328),
+    "thinking": (738, 396, 892, 600),
+    "talking": (943, 402, 1092, 600),
+    "sleeping": (1203, 390, 1402, 600),
+    "surprised": (718, 638, 934, 838),
+    "happy": (1000, 645, 1256, 838),
+}
+
+# 크롭 안으로 침범한 이웃 요소(생각 말풍선 등)를 배경색으로 덧칠할 영역 (시트 좌표)
+ERASE_ZONES = {
+    "thinking": [(860, 396, 892, 440)],
 }
 
 TOLERANCE = 34  # 배경으로 판정할 채널별 색 거리 (더 크면 밝은 얼굴 털이 침식됨)
+# 밝은 얼굴 털이 배경과 거의 같은 색이라 누출이 생기는 포즈는 더 엄격하게
+TOLERANCE_OVERRIDE = {"thinking": 20, "talking": 22}
 SHADOW = (231, 215, 194)  # 포즈 밑 바닥 그림자 색 (시트에서 샘플링)
 SHADOW_TOL = 25
+MIN_ISLAND = 25  # 이보다 작은 고립 픽셀 부스러기는 제거 (효과선/하트/Z는 남김)
 
 
 def flood_remove_background(img: Image.Image, tol: int = TOLERANCE) -> Image.Image:
@@ -80,6 +89,72 @@ def flood_remove_background(img: Image.Image, tol: int = TOLERANCE) -> Image.Ima
     return img
 
 
+def remove_small_islands(img: Image.Image, min_size: int = MIN_ISLAND) -> Image.Image:
+    """본체와 떨어진 작은 픽셀 덩어리(말풍선 조각 등)를 지운다.
+
+    잠자기 Z, 놀람 !, 기쁨 하트처럼 의도된 장식은 min_size보다 커서 남는다.
+    """
+    w, h = img.size
+    px = img.load()
+    labeled = bytearray(w * h)
+
+    for sy in range(h):
+        for sx in range(w):
+            if labeled[sy * w + sx] or px[sx, sy][3] == 0:
+                continue
+            component = [(sx, sy)]
+            labeled[sy * w + sx] = 1
+            queue = deque(component)
+            while queue:
+                x, y = queue.popleft()
+                for nx, ny in (
+                    (x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1),
+                    (x + 1, y + 1), (x - 1, y - 1), (x + 1, y - 1), (x - 1, y + 1),
+                ):
+                    if (
+                        0 <= nx < w and 0 <= ny < h
+                        and not labeled[ny * w + nx]
+                        and px[nx, ny][3] > 0
+                    ):
+                        labeled[ny * w + nx] = 1
+                        component.append((nx, ny))
+                        queue.append((nx, ny))
+            if len(component) < min_size:
+                for x, y in component:
+                    px[x, y] = (0, 0, 0, 0)
+    return img
+
+
+def count_interior_holes(img: Image.Image) -> int:
+    """테두리와 연결되지 않은 투명 픽셀 수 = 본체에 뚫린 구멍 크기."""
+    w, h = img.size
+    alpha = img.getchannel("A").load()
+    outside = bytearray(w * h)
+    queue = deque()
+    for x in range(w):
+        for y in (0, h - 1):
+            if alpha[x, y] == 0 and not outside[y * w + x]:
+                outside[y * w + x] = 1
+                queue.append((x, y))
+    for y in range(h):
+        for x in (0, w - 1):
+            if alpha[x, y] == 0 and not outside[y * w + x]:
+                outside[y * w + x] = 1
+                queue.append((x, y))
+    while queue:
+        x, y = queue.popleft()
+        for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+            if (
+                0 <= nx < w and 0 <= ny < h
+                and not outside[ny * w + nx]
+                and alpha[nx, ny] == 0
+            ):
+                outside[ny * w + nx] = 1
+                queue.append((nx, ny))
+    total_transparent = sum(1 for y in range(h) for x in range(w) if alpha[x, y] == 0)
+    return total_transparent - sum(outside)
+
+
 def trim(img: Image.Image, margin: int = 2) -> Image.Image:
     bbox = img.getchannel("A").getbbox()
     if not bbox:
@@ -107,12 +182,21 @@ def main():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     sheet = Image.open(SHEET).convert("RGBA")
 
+    bg_color = sheet.getpixel((700, 50))
+
     results = {}
     for name, box in BOXES.items():
-        sprite = trim(flood_remove_background(sheet.crop(box)))
+        crop = sheet.crop(box)
+        for l, t, r, b in ERASE_ZONES.get(name, []):
+            crop.paste(bg_color, (l - box[0], t - box[1], r - box[0], b - box[1]))
+        tol = TOLERANCE_OVERRIDE.get(name, TOLERANCE)
+        sprite = flood_remove_background(crop, tol)
+        sprite = trim(remove_small_islands(sprite))
         sprite.save(OUT_DIR / f"{name}.png")
         results[name] = sprite
-        print(f"{name}: {sprite.size}")
+        holes = count_interior_holes(sprite)
+        flag = "  ⚠ 내부 구멍!" if holes > 40 else ""
+        print(f"{name}: {sprite.size} 내부구멍={holes}{flag}")
 
     if debug:
         pad = 10
