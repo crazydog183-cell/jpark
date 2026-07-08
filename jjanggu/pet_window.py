@@ -48,6 +48,10 @@ class PetWindow(QWidget):
         self._timer.timeout.connect(self._tick)
         self._timer.start(TICK_MS)
 
+    def set_always_on_top(self, on: bool) -> None:
+        self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, on)
+        self.show()  # 플래그 변경 후 창을 다시 띄워야 적용된다
+
     def set_sprites(self, sprites: SpriteSet) -> None:
         """설정에서 크기가 바뀌면 스프라이트 세트를 교체한다."""
         self._sprites = sprites

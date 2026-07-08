@@ -132,6 +132,12 @@ class ChatWindow(QWidget):
         input_row.addWidget(self._send_btn)
         layout.addLayout(input_row)
 
+        # 지난 대화 기록 복원 (최근 30개)
+        for role, text in brain.history[-30:]:
+            self._add_bubble(text, "user" if role == "user" else "pet")
+        if brain.history:
+            self._greeted = True
+
     # ── 표시 위치 ────────────────────────────────────────────────
     def toggle_near(self, pet_window: QWidget) -> None:
         if self.isVisible():

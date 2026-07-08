@@ -7,10 +7,12 @@ from PySide6.QtWidgets import QApplication
 
 from jjanggu import tools
 from jjanggu.behavior import Behavior
+from jjanggu.bubble import SpeechBubble
 from jjanggu.chat_window import ChatWindow
 from jjanggu.config import Config
 from jjanggu.confirm import ConfirmBridge
 from jjanggu.llm import Brain
+from jjanggu.mutter import Mutterer
 from jjanggu.pet_window import PetWindow
 from jjanggu.sprites import SpriteSet
 from jjanggu.tray import SettingsDialog, create_tray
@@ -22,11 +24,14 @@ def main() -> int:
     app.setQuitOnLastWindowClosed(False)  # 펫/채팅창을 닫아도 트레이에 남는다
 
     config = Config.load()
-    behavior = Behavior(config.walk_speed)
+    behavior = Behavior(config.walk_speed, config.activity)
     sprites = SpriteSet(config.pet_size)
     pet = PetWindow(sprites, behavior)
+    pet.set_always_on_top(config.always_on_top)
     brain = Brain(config)
     chat = ChatWindow(brain)
+    bubble = SpeechBubble()
+    mutterer = Mutterer(config, behavior, bubble, pet, chat)  # noqa: F841
 
     confirm = ConfirmBridge()
     tools.set_confirmer(confirm.confirm)
@@ -36,9 +41,12 @@ def main() -> int:
 
     def open_settings() -> None:
         old_size = config.pet_size
-        if not SettingsDialog.edit(config):
+        if not SettingsDialog.edit(config, brain=brain, on_quit=app.quit):
             return
         brain.reset()
+        behavior.walk_speed = config.walk_speed
+        behavior.set_activity(config.activity)
+        pet.set_always_on_top(config.always_on_top)
         if config.pet_size != old_size:
             pet.set_sprites(SpriteSet(config.pet_size))
 

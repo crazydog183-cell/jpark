@@ -17,18 +17,10 @@ SLEEPING = "sleeping"
 SURPRISED = "surprised"
 HAPPY = "happy"
 
-# (상태, 가중치, 최소 지속초, 최대 지속초)
-_AUTO_STATES = (
-    (WALKING, 45, 3.0, 8.0),
-    (IDLE, 30, 2.0, 5.0),
-    (SITTING, 20, 3.0, 7.0),
-    (SLEEPING, 5, 12.0, 30.0),
-)
-
-
 class Behavior:
-    def __init__(self, walk_speed: float = 55.0):
+    def __init__(self, walk_speed: float = 55.0, activity: int = 60):
         self.walk_speed = walk_speed
+        self.set_activity(activity)
         self.x = 200.0
         self.span = (0, 800)  # 걸을 수 있는 x 범위 (창 좌측 기준)
         self.facing_right = random.random() < 0.5
@@ -40,6 +32,18 @@ class Behavior:
         self._bob_t = 0.0
 
     # ── 외부 이벤트 ──────────────────────────────────────────────
+    def set_activity(self, activity: int) -> None:
+        """활동성(0=게으름~100=활발)에 따라 상태 전환 가중치를 조정한다."""
+        activity = max(0, min(100, activity))
+        self.activity = activity
+        # (상태, 가중치, 최소 지속초, 최대 지속초)
+        self._auto_states = (
+            (WALKING, 10 + activity * 0.6, 3.0, 8.0),
+            (IDLE, 30, 2.0, 5.0),
+            (SITTING, 20, 3.0, 7.0),
+            (SLEEPING, max(1.0, (100 - activity) * 0.12), 12.0, 30.0),
+        )
+
     def set_span(self, left: int, right: int, width: int) -> None:
         self.span = (left, max(left, right - width))
         self.x = min(max(self.x, self.span[0]), self.span[1])
@@ -113,7 +117,7 @@ class Behavior:
         return self._state, self.x, flipped, bob
 
     def _pick_next(self) -> None:
-        states = [s for s in _AUTO_STATES if s[0] != self._state]
+        states = [s for s in self._auto_states if s[0] != self._state]
         total = sum(s[1] for s in states)
         r = random.uniform(0, total)
         for name, weight, lo, hi in states:

@@ -22,6 +22,9 @@ class Config:
     model: str = DEFAULT_MODEL
     pet_size: int = 96  # 펫(대기 포즈) 화면 높이 px
     walk_speed: float = 55.0  # px/초
+    activity: int = 60  # 활동성 0(게으름)~100(활발) — 걷기/잠자기 비율
+    mutter_enabled: bool = True  # 혼잣말/시스템 알림 말풍선
+    always_on_top: bool = True  # 펫 창 항상 맨 위
     path: Path = field(default=None, repr=False, compare=False)
 
     @classmethod

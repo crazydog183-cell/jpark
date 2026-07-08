@@ -5,8 +5,13 @@ tools.ALL_TOOLS 의 파이썬 함수를 그대로 넘기면 SDK가 선언 생성
 호출-응답 루프를 처리한다. 대화 히스토리는 chat 세션이 유지한다.
 """
 
+import json
+
 from . import tools
-from .config import Config
+from .config import Config, config_dir
+
+HISTORY_FILE_LIMIT = 200  # 파일에 저장할 최대 메시지 수
+HISTORY_SESSION_LIMIT = 40  # 새 세션에 이어붙일 최근 메시지 수
 
 PERSONA = """너는 '장꾸'야. 주인의 Windows 작업표시줄 위에 사는 크림색 포메라니안 데스크톱 펫이야.
 
@@ -33,14 +38,60 @@ class Brain:
         self._config = config
         self._client = None
         self._chat = None
+        self._history: list[tuple[str, str]] = self._load_history()
+
+    @property
+    def history(self) -> list[tuple[str, str]]:
+        """(role, text) 쌍 목록. role은 'user' 또는 'model'."""
+        return list(self._history)
 
     def ready(self) -> bool:
         return bool(self._config.api_key)
 
     def reset(self) -> None:
-        """API 키/모델 변경 시 호출 — 다음 메시지부터 새 세션."""
+        """API 키/모델 변경 시 호출 — 다음 메시지부터 새 세션 (기록은 유지)."""
         self._client = None
         self._chat = None
+
+    def clear_history(self) -> None:
+        self._history = []
+        self._save_history()
+        self.reset()
+
+    # ── 대화 기록 영속화 ─────────────────────────────────────────
+    @staticmethod
+    def _history_path():
+        return config_dir() / "history.json"
+
+    def _load_history(self) -> list[tuple[str, str]]:
+        path = self._history_path()
+        if not path.exists():
+            return []
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return [
+                (m["role"], m["text"])
+                for m in data
+                if m.get("role") in ("user", "model") and m.get("text")
+            ]
+        except (json.JSONDecodeError, OSError, TypeError, KeyError):
+            return []
+
+    def _save_history(self) -> None:
+        self._history = self._history[-HISTORY_FILE_LIMIT:]
+        path = self._history_path()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                json.dumps(
+                    [{"role": r, "text": t} for r, t in self._history],
+                    ensure_ascii=False,
+                    indent=1,
+                ),
+                encoding="utf-8",
+            )
+        except OSError:
+            pass  # 기록 저장 실패는 치명적이지 않음
 
     def _ensure_chat(self):
         from google import genai
@@ -49,6 +100,10 @@ class Brain:
         if self._client is None:
             self._client = genai.Client(api_key=self._config.api_key)
         if self._chat is None:
+            history = [
+                types.Content(role=role, parts=[types.Part(text=text)])
+                for role, text in self._history[-HISTORY_SESSION_LIMIT:]
+            ]
             self._chat = self._client.chats.create(
                 model=self._config.model,
                 config=types.GenerateContentConfig(
@@ -56,6 +111,7 @@ class Brain:
                     tools=list(tools.ALL_TOOLS),
                     temperature=0.9,
                 ),
+                history=history,
             )
         return self._chat
 
@@ -67,7 +123,10 @@ class Brain:
             chat = self._ensure_chat()
             response = chat.send_message(text)
             reply = (response.text or "").strip()
-            return reply or "…뭐라고 답해야 할지 모르겠어. 다시 말해줄래? 멍!"
+            reply = reply or "…뭐라고 답해야 할지 모르겠어. 다시 말해줄래? 멍!"
+            self._history += [("user", text), ("model", reply)]
+            self._save_history()
+            return reply
         except Exception as e:  # 네트워크/인증 등 모든 API 오류
             self.reset()
             msg = str(e)
