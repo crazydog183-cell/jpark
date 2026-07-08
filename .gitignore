@@ -7,3 +7,5 @@ build/
 dist/
 *.spec.bak
 assets/sprites/_debug_sheet.png
+.deps_ok
+*.spec

@@ -105,9 +105,15 @@ def web_search(query: str) -> str:
 
 # ── 볼륨/미디어 ─────────────────────────────────────────────────
 def _volume_interface():
+    import comtypes
     from comtypes import CLSCTX_ALL
     from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
 
+    # LLM 도구는 워커 스레드에서 실행되므로 COM을 스레드별로 초기화해야 한다
+    try:
+        comtypes.CoInitialize()
+    except OSError:
+        pass  # 이미 초기화된 스레드
     devices = AudioUtilities.GetSpeakers()
     interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
     return interface.QueryInterface(IAudioEndpointVolume)

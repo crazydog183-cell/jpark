@@ -1,8 +1,9 @@
 """장꾸 실행 진입점: python main.py"""
 
 import sys
+import traceback
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QDir, QLockFile, QTimer
 from PySide6.QtWidgets import QApplication
 
 from jjanggu import tools
@@ -18,10 +19,35 @@ from jjanggu.sprites import SpriteSet
 from jjanggu.tray import SettingsDialog, create_tray
 
 
+def _install_crash_log() -> None:
+    """예기치 못한 예외를 %APPDATA%/Jjanggu/error.log 에 남긴다."""
+    from jjanggu.config import config_dir
+
+    def hook(exc_type, exc, tb):
+        try:
+            path = config_dir() / "error.log"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as f:
+                traceback.print_exception(exc_type, exc, tb, file=f)
+        except OSError:
+            pass
+        sys.__excepthook__(exc_type, exc, tb)
+
+    sys.excepthook = hook
+
+
 def main() -> int:
+    _install_crash_log()
     app = QApplication(sys.argv)
     app.setApplicationName("Jjanggu")
     app.setQuitOnLastWindowClosed(False)  # 펫/채팅창을 닫아도 트레이에 남는다
+
+    # 단일 인스턴스: 자동 실행 + 수동 실행이 겹쳐도 장꾸는 한 마리만
+    lock = QLockFile(QDir.tempPath() + "/jjanggu.lock")
+    lock.setStaleLockTime(0)
+    if not lock.tryLock(100):
+        print("장꾸가 이미 실행 중이에요. (한 마리면 충분히 귀여워요)")
+        return 0
 
     config = Config.load()
     behavior = Behavior(config.walk_speed, config.activity)

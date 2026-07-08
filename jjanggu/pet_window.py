@@ -4,16 +4,18 @@
 Qt.Tool 플래그로 작업표시줄에 창 자신이 나타나지 않게 한다.
 """
 
-from PySide6.QtCore import QPoint, Qt, QTimer, Signal
+from PySide6.QtCore import QElapsedTimer, QPoint, Qt, QTimer, Signal
 from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import QApplication, QMenu, QWidget
 
 from . import taskbar
-from .behavior import Behavior
+from .behavior import WALKING, Behavior
 from .sprites import SpriteSet
 
-TICK_MS = 40  # 25fps
-GROUND_REFRESH_TICKS = 125  # 5초마다 작업표시줄 위치 재확인
+# 적응형 프레임레이트: 움직일 때만 부드럽게, 멈춰 있으면 CPU를 아낀다
+ACTIVE_TICK_MS = 40  # 걷기 중 25fps
+IDLE_TICK_MS = 130  # 정지 포즈 ~8fps (전환 반응성 유지)
+GROUND_REFRESH_S = 5.0  # 작업표시줄 위치 재확인 주기
 
 
 class PetWindow(QWidget):
@@ -32,11 +34,11 @@ class PetWindow(QWidget):
         self._sprites = sprites
         self._behavior = behavior
         self._pixmap = sprites.get("idle")
-        self._bob = 0.0
+        self._bob = 0
         self._ground_y = 0
         self._drag_offset: QPoint | None = None
         self._dragged = False
-        self._tick_count = 0
+        self._ground_accum = 0.0
 
         self.setFixedSize(sprites.cell())
         self._refresh_ground()
@@ -44,9 +46,11 @@ class PetWindow(QWidget):
             (self._behavior.span[0] + self._behavior.span[1]) // 2
         )
 
+        self._clock = QElapsedTimer()
+        self._clock.start()
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
-        self._timer.start(TICK_MS)
+        self._timer.start(ACTIVE_TICK_MS)
 
     def set_always_on_top(self, on: bool) -> None:
         self.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, on)
@@ -67,24 +71,40 @@ class PetWindow(QWidget):
         self._behavior.set_span(left, right, self.width())
 
     def _tick(self) -> None:
-        self._tick_count += 1
-        if self._tick_count % GROUND_REFRESH_TICKS == 0:
+        # 타이머 간격이 가변이므로 실제 경과 시간으로 진행한다
+        dt = min(self._clock.restart() / 1000.0, 0.25)
+
+        self._ground_accum += dt
+        if self._ground_accum >= GROUND_REFRESH_S:
+            self._ground_accum = 0.0
             self._refresh_ground()
 
         if self._drag_offset is not None:
             return  # 드래그 중에는 자율 이동 정지
 
-        state, x, flipped, bob = self._behavior.update(TICK_MS / 1000.0)
-        self._pixmap = self._sprites.get(state, flipped)
-        self._bob = bob
-        self.move(round(x), self._ground_y - self.height())
-        self.update()
+        state, x, flipped, bob = self._behavior.update(dt)
+
+        target = (round(x), self._ground_y - self.height())
+        if target != (self.x(), self.y()):
+            self.move(*target)
+
+        # 보이는 내용이 실제로 바뀔 때만 리페인트
+        pixmap = self._sprites.get(state, flipped)
+        bob_px = round(bob)
+        if pixmap is not self._pixmap or bob_px != self._bob:
+            self._pixmap = pixmap
+            self._bob = bob_px
+            self.update()
+
+        want = ACTIVE_TICK_MS if state == WALKING else IDLE_TICK_MS
+        if self._timer.interval() != want:
+            self._timer.setInterval(want)
 
     def paintEvent(self, event) -> None:  # noqa: N802 (Qt 규약)
         painter = QPainter(self)
         # 하단 중앙 정렬로 그려서 포즈 크기가 달라도 발이 바닥에 붙는다
         x = (self.width() - self._pixmap.width()) // 2
-        y = self.height() - self._pixmap.height() - round(self._bob)
+        y = self.height() - self._pixmap.height() - self._bob
         painter.drawPixmap(x, y, self._pixmap)
 
     # ── 마우스 ──────────────────────────────────────────────────

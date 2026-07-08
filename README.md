@@ -31,7 +31,10 @@ Windows **작업표시줄 위에서 살아가는 픽셀아트 포메라니안 �
 ## 설치 및 실행 (Windows)
 
 1. [Python 3.10+](https://www.python.org/downloads/) 설치 (설치 시 "Add python.exe to PATH" 체크)
-2. 이 저장소를 내려받고 폴더에서:
+2. 이 저장소를 내려받아 압축을 풀고 **`장꾸실행.bat` 더블클릭** — 끝!
+   (최초 실행 시 의존성을 자동 설치하고, 콘솔 창 없이 장꾸가 나타납니다)
+
+   명령어로 직접 실행하려면:
 
    ```bat
    pip install -r requirements.txt
@@ -41,6 +44,9 @@ Windows **작업표시줄 위에서 살아가는 픽셀아트 포메라니안 �
 3. 첫 실행 시 설정 창이 뜹니다. [Google AI Studio](https://aistudio.google.com/apikey)에서
    무료 Gemini API 키를 발급받아 붙여넣으세요.
    (환경변수 `GEMINI_API_KEY`로 설정해도 됩니다.)
+
+장꾸는 한 번에 한 마리만 실행됩니다(중복 실행 방지). 문제가 생기면
+`%APPDATA%\Jjanggu\error.log` 를 확인하세요.
 
 ## 사용법
 
@@ -67,12 +73,14 @@ Windows **작업표시줄 위에서 살아가는 픽셀아트 포메라니안 �
 
 ## 실행 파일(.exe)로 만들기 (선택)
 
-```bat
-pip install pyinstaller
-pyinstaller --noconsole --name Jjanggu --add-data "assets;assets" main.py
-```
+`build_exe.bat` 더블클릭 → `dist\Jjanggu\Jjanggu.exe` 가 생성됩니다.
 
-`dist\Jjanggu\Jjanggu.exe` 가 생성됩니다.
+## 성능
+
+- 정지 포즈(대기/앉기/잠자기)에서는 자동으로 프레임레이트를 낮추고
+  화면 변화가 있을 때만 다시 그려서 CPU를 거의 쓰지 않습니다.
+- 혼잣말은 로컬 멘트 풀에서 나오므로 API 비용이 들지 않습니다.
+  Gemini API는 채팅을 보낼 때만 호출됩니다.
 
 ## 프로젝트 구조
 
