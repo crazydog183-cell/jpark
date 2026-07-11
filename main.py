@@ -76,11 +76,17 @@ def main() -> int:
         if config.pet_size != old_size:
             pet.set_sprites(SpriteSet(config.pet_size))
 
+    def on_reply(reply: str) -> None:
+        behavior.chat_talking(len(reply))
+        if not chat.isVisible():
+            # 응답을 기다리다 채팅창을 닫았어도 말풍선으로 전달
+            bubble.show_for(pet, reply, msecs=9000)
+
     pet.chat_requested.connect(open_chat)
     pet.settings_requested.connect(open_settings)
     pet.quit_requested.connect(app.quit)
     chat.thinking_started.connect(behavior.chat_thinking)
-    chat.reply_shown.connect(lambda reply: behavior.chat_talking(len(reply)))
+    chat.reply_shown.connect(on_reply)
 
     tray = create_tray(  # noqa: F841 (참조 유지용)
         app,

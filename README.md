@@ -28,7 +28,17 @@ Windows **작업표시줄 위에서 살아가는 픽셀아트 포메라니안 �
 - **대화 기억**: 채팅 기록을 저장해 앱을 재시작해도 장꾸가 지난 대화를 기억합니다
 - **시스템 트레이**: 채팅 열기 / 재우기 / 설정 / 종료
 
-## 설치 및 실행 (Windows)
+## 가장 쉬운 방법: exe 내려받아 실행
+
+**[Releases 페이지](https://github.com/crazydog183-cell/jpark/releases)에서 `Jjanggu.exe`를 내려받아
+더블클릭하면 끝입니다.** Python 설치가 필요 없습니다.
+
+- 첫 실행 시 Windows SmartScreen 경고가 뜨면 **"추가 정보" → "실행"** 을 누르세요
+  (서명되지 않은 개인 프로그램에 뜨는 표준 경고입니다).
+- exe는 GitHub Actions가 push마다 자동 빌드해 Releases에 올립니다.
+  직접 빌드하려면 `build_exe.bat`을 더블클릭하세요 (`dist\Jjanggu.exe` 생성).
+
+## 소스로 실행 (Windows)
 
 1. [Python 3.10+](https://www.python.org/downloads/) 설치 (설치 시 "Add python.exe to PATH" 체크)
 2. 이 저장소를 내려받아 압축을 풀고 **`장꾸실행.bat` 더블클릭** — 끝!
@@ -70,10 +80,6 @@ Windows **작업표시줄 위에서 살아가는 픽셀아트 포메라니안 �
 
 - 설정 파일: `%APPDATA%\Jjanggu\config.json` · 대화 기록: `%APPDATA%\Jjanggu\history.json`
 - 기본 모델: `gemini-3.5-flash` — 설정 창에서 다른 Gemini 모델로 바꿀 수 있습니다.
-
-## 실행 파일(.exe)로 만들기 (선택)
-
-`build_exe.bat` 더블클릭 → `dist\Jjanggu\Jjanggu.exe` 가 생성됩니다.
 
 ## 성능
 

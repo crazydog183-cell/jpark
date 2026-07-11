@@ -87,6 +87,7 @@ class ChatWindow(QWidget):
         self._worker = _Worker(brain)
         self._worker.reply_ready.connect(self._on_reply)
         self._greeted = False
+        self._drag_offset = None  # 빈 영역/헤더 드래그로 창 이동
 
         panel = QFrame(self)
         panel.setObjectName("panel")
@@ -155,6 +156,24 @@ class ChatWindow(QWidget):
         self.show()
         self.raise_()
         self._input.setFocus()
+
+    # ── 창 이동/닫기 ─────────────────────────────────────────────
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._drag_offset = event.globalPosition().toPoint() - self.pos()
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802
+        if self._drag_offset is not None:
+            self.move(event.globalPosition().toPoint() - self._drag_offset)
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
+        self._drag_offset = None
+
+    def keyPressEvent(self, event) -> None:  # noqa: N802
+        if event.key() == Qt.Key.Key_Escape:
+            self.hide()
+        else:
+            super().keyPressEvent(event)
 
     # ── 메시지 처리 ──────────────────────────────────────────────
     def _send(self) -> None:

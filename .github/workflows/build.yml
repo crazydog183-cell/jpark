@@ -1,0 +1,66 @@
+name: 테스트 및 Windows EXE 빌드
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: 스모크 테스트 (Linux offscreen)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Qt 런타임 라이브러리 설치
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libegl1 libgl1 libxkbcommon0 libdbus-1-3
+      - run: pip install -r requirements.txt
+      - name: 스모크 테스트 실행
+        run: python tests/smoke_test.py
+        env:
+          QT_QPA_PLATFORM: offscreen
+
+  build-exe:
+    name: Windows EXE 빌드
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt pyinstaller
+      - name: PyInstaller 단일 실행 파일 빌드
+        run: >
+          pyinstaller --onefile --noconsole --name Jjanggu
+          --add-data "assets;assets"
+          --hidden-import comtypes.stream
+          main.py
+      - name: 빌드 결과 아티팩트 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: Jjanggu-windows
+          path: dist/Jjanggu.exe
+
+      - name: Release에 exe 게시 (기본 브랜치 push에만)
+        if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: "장꾸 최신 빌드 — Jjanggu.exe"
+          body: |
+            **Jjanggu.exe 하나만 내려받아 더블클릭하면 바로 실행됩니다.** (Python 설치 불필요)
+
+            - 첫 실행 시 Windows SmartScreen 경고가 뜨면 **"추가 정보" → "실행"** 을 누르세요.
+              (서명되지 않은 개인 프로그램이라 뜨는 표준 경고입니다)
+            - 첫 실행 시 설정 창에 [Google AI Studio](https://aistudio.google.com/apikey)에서
+              발급받은 무료 Gemini API 키를 넣어주세요.
+          files: dist/Jjanggu.exe
+          prerelease: false
