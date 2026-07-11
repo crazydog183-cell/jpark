@@ -146,21 +146,46 @@ info = tools.get_system_info()
 assert "현재 시각" in info and "CPU" in info
 print(f"6. 도구 선언 {len(tools.ALL_TOOLS)}개 + 플랫폼 가드 OK")
 
-# 7) Brain: 키 미설정 응답 + 대화 기록 저장/복원/삭제
+# 7) Brain: 키 미설정 응답 + 대화 기록 저장/복원/삭제 + 시간 컨텍스트
+import datetime
+
 from jjanggu.config import Config
-from jjanggu.llm import Brain
+from jjanggu.llm import Brain, _format_gap
 
 cfg = Config(path=_tmp / "config.json")
 cfg.api_key = ""
 brain = Brain(cfg)
 assert "API 키" in brain.send("안녕")
-brain._history = [("user", "안녕"), ("model", "흥, 왔어?")]
+
+now = datetime.datetime.now()
+ctx = brain._time_context(now)
+assert "첫 대화" in ctx and f"{now.hour:02d}:{now.minute:02d}" in ctx, ctx
+two_h_ago = (now - datetime.timedelta(hours=2, minutes=5)).isoformat(timespec="seconds")
+brain._history = [
+    {"role": "user", "text": "안녕", "ts": two_h_ago},
+    {"role": "model", "text": "흥, 왔어?", "ts": two_h_ago},
+]
+assert "2시간" in brain._time_context(now), brain._time_context(now)
+assert _format_gap(30) == "방금 전"
+assert _format_gap(45 * 60) == "45분 전"
+assert _format_gap(3 * 86400) == "3일 전"
+
 brain._save_history()
 brain2 = Brain(cfg)
 assert brain2.history == [("user", "안녕"), ("model", "흥, 왔어?")]
+assert brain2._history[0]["ts"] == two_h_ago  # 타임스탬프 왕복 보존
 brain2.clear_history()
 assert brain2.history == []
-print("7. Brain 키 가드 + 기록 저장/복원/삭제 OK")
+print("7. Brain 키 가드 + 기록 저장/복원 + 시간 컨텍스트 OK")
+
+# 7.5) 화면 분석 도구 가드
+from jjanggu import tools as tools_mod
+
+if sys.platform != "win32":
+    assert tools_mod.analyze_screen() == tools_mod.NOT_WINDOWS_MSG
+assert tools_mod.analyze_screen in tools_mod.ALL_TOOLS
+assert "API 키" in brain.describe_screen(b"")  # 키 없으면 비전 호출 안 함
+print("7.5 화면 분석 도구 가드 OK")
 
 # 8) 채팅창: 토글/말풍선/기록 복원
 from jjanggu.chat_window import ChatWindow

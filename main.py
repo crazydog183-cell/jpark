@@ -61,6 +61,7 @@ def main() -> int:
 
     confirm = ConfirmBridge()
     tools.set_confirmer(confirm.confirm)
+    tools.set_screen_analyzer(brain.describe_screen)  # "내 화면 봐줘" 비전 분석
 
     def open_chat() -> None:
         chat.toggle_near(pet)

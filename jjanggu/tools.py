@@ -23,11 +23,18 @@ IS_WINDOWS = sys.platform == "win32"
 NOT_WINDOWS_MSG = "이 기능은 Windows에서만 쓸 수 있어."
 
 _confirmer: Callable[[str], bool] | None = None
+_screen_analyzer: Callable[[bytes], str] | None = None
 
 
 def set_confirmer(fn: Callable[[str], bool]) -> None:
     global _confirmer
     _confirmer = fn
+
+
+def set_screen_analyzer(fn: Callable[[bytes], str]) -> None:
+    """PNG 바이트를 받아 화면 설명을 돌려주는 비전 분석기를 주입한다."""
+    global _screen_analyzer
+    _screen_analyzer = fn
 
 
 def _confirm(message: str) -> bool:
@@ -191,6 +198,33 @@ def get_system_info() -> str:
     return "\n".join(lines)
 
 
+def analyze_screen() -> str:
+    """주인의 현재 화면을 캡처해서 무엇이 보이는지 분석한다.
+
+    "내 화면 봐줘", "지금 나 뭐 하고 있게?", "이 화면 요약/설명해줘" 같은
+    요청에 사용한다. 결과에 캡처 시각이 포함되므로 현재 시각과 비교해
+    말할 수 있다.
+    """
+    if not IS_WINDOWS:
+        return NOT_WINDOWS_MSG
+    if _screen_analyzer is None:
+        return "화면 분석 기능이 아직 연결되지 않았어."
+    import io
+
+    from PIL import ImageGrab
+
+    captured_at = datetime.datetime.now().strftime("%H:%M:%S")
+    image = ImageGrab.grab()
+    image.thumbnail((1600, 1600))  # 토큰/전송량 절약
+    buffer = io.BytesIO()
+    image.save(buffer, "PNG")
+    try:
+        description = _screen_analyzer(buffer.getvalue())
+    except Exception as e:
+        return f"화면 분석 실패: {e}"
+    return f"[캡처 시각 {captured_at}] 화면 분석 결과:\n{description}"
+
+
 def take_screenshot() -> str:
     """전체 화면을 캡처해서 사진 폴더에 저장한다."""
     if not IS_WINDOWS:
@@ -247,6 +281,7 @@ ALL_TOOLS = [
     toggle_mute,
     media_control,
     get_system_info,
+    analyze_screen,
     take_screenshot,
     minimize_all_windows,
     lock_screen,
