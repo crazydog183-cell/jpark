@@ -17,6 +17,12 @@ SLEEPING = "sleeping"
 SURPRISED = "surprised"
 HAPPY = "happy"
 
+# 스프라이트 원본이 바라보는 방향. 진행 방향과 다르면 반전해서
+# 걷다가 멈춰도 홱 뒤돌지 않고 같은 쪽을 계속 본다.
+_NATIVE_LEFT = {IDLE, SLEEPING, SURPRISED, HAPPY}  # 원본이 왼쪽을 봄
+_NATIVE_RIGHT = {WALKING}  # 원본이 오른쪽을 봄
+# 나머지(앉기/생각/말하기)는 정면이라 반전 불필요
+
 class Behavior:
     def __init__(self, walk_speed: float = 55.0, activity: int = 60):
         self.walk_speed = walk_speed
@@ -78,11 +84,19 @@ class Behavior:
         self._override = state
         self._override_left = duration
 
+    def _flipped(self, state: str) -> bool:
+        """진행 방향과 스프라이트 원본 방향이 다르면 True."""
+        if state in _NATIVE_LEFT:
+            return self.facing_right
+        if state in _NATIVE_RIGHT:
+            return not self.facing_right
+        return False
+
     # ── 틱 ──────────────────────────────────────────────────────
     def update(self, dt: float) -> tuple[str, float, bool, float]:
         """(상태, x, 좌우반전 여부, y 바운스 오프셋) 반환."""
         if self._forced_sleep:
-            return SLEEPING, self.x, False, 0.0
+            return SLEEPING, self.x, self._flipped(SLEEPING), 0.0
 
         if self._override:
             self._override_left -= dt
@@ -93,7 +107,7 @@ class Behavior:
                     self.chat_done_happy()
                     return self.update(0)
             else:
-                return self._override, self.x, False, 0.0
+                return self._override, self.x, self._flipped(self._override), 0.0
 
         self._time_left -= dt
         if self._time_left <= 0:
@@ -112,9 +126,7 @@ class Behavior:
             self._bob_t += dt
             bob = abs(math.sin(self._bob_t * 8.0)) * 2.0
 
-        # 걷기 스프라이트 원본이 오른쪽을 보므로, 왼쪽 이동 시 반전
-        flipped = self._state == WALKING and not self.facing_right
-        return self._state, self.x, flipped, bob
+        return self._state, self.x, self._flipped(self._state), bob
 
     def _pick_next(self) -> None:
         states = [s for s in self._auto_states if s[0] != self._state]

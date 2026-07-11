@@ -16,6 +16,7 @@ from .sprites import SpriteSet
 ACTIVE_TICK_MS = 40  # 걷기 중 25fps
 IDLE_TICK_MS = 130  # 정지 포즈 ~8fps (전환 반응성 유지)
 GROUND_REFRESH_S = 5.0  # 작업표시줄 위치 재확인 주기
+GRAVITY = 2600.0  # 드래그 후 낙하 가속도 px/s²
 
 
 class PetWindow(QWidget):
@@ -38,6 +39,7 @@ class PetWindow(QWidget):
         self._ground_y = 0
         self._drag_offset: QPoint | None = None
         self._dragged = False
+        self._fall_vy: float | None = None  # None이 아니면 낙하 중
         self._ground_accum = 0.0
 
         self.setFixedSize(sprites.cell())
@@ -82,6 +84,10 @@ class PetWindow(QWidget):
         if self._drag_offset is not None:
             return  # 드래그 중에는 자율 이동 정지
 
+        if self._fall_vy is not None:
+            self._fall(dt)
+            return
+
         state, x, flipped, bob = self._behavior.update(dt)
 
         target = (round(x), self._ground_y - self.height())
@@ -99,6 +105,22 @@ class PetWindow(QWidget):
         want = ACTIVE_TICK_MS if state == WALKING else IDLE_TICK_MS
         if self._timer.interval() != want:
             self._timer.setInterval(want)
+
+    def _fall(self, dt: float) -> None:
+        """드래그 후 공중에서 작업표시줄까지 중력 낙하."""
+        self._fall_vy += GRAVITY * dt
+        ground_top = self._ground_y - self.height()
+        y = self.y() + self._fall_vy * dt
+        if y >= ground_top:
+            y = ground_top
+            self._fall_vy = None
+            self._behavior.startled()  # 착지하면 깜짝
+        self.move(self.x(), round(y))
+        pixmap = self._sprites.get("surprised", self._behavior.facing_right)
+        if pixmap is not self._pixmap:
+            self._pixmap = pixmap
+            self._bob = 0
+            self.update()
 
     def paintEvent(self, event) -> None:  # noqa: N802 (Qt 규약)
         painter = QPainter(self)
@@ -129,10 +151,14 @@ class PetWindow(QWidget):
         self._drag_offset = None
         self._dragged = False
         if was_drag:
-            # 어디에 놓든 다시 작업표시줄 위로 스냅
             self._behavior.x = float(self.x())
             self._refresh_ground()  # span 갱신 + x 클램프
-            self._behavior.startled()
+            if self.y() < self._ground_y - self.height():
+                # 공중에서 놓았으면 중력 낙하 시작
+                self._fall_vy = 0.0
+                self._timer.setInterval(ACTIVE_TICK_MS)
+            else:
+                self._behavior.startled()
         else:
             self.chat_requested.emit()
 

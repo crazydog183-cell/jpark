@@ -60,6 +60,16 @@ assert b.update(0.04)[0] == "sleeping"
 b.toggle_forced_sleep()
 print("3. 행동 상태머신 OK, 관측 상태:", sorted(seen))
 
+# 3.5) 방향 유지: 오른쪽으로 걷다 멈춰도 같은 방향을 본다
+b.facing_right = True
+assert b._flipped("walking") is False  # 걷기 원본은 오른쪽
+assert b._flipped("idle") is True  # 대기 원본은 왼쪽 → 반전해서 오른쪽 유지
+assert b._flipped("sitting") is False  # 정면 포즈는 반전 없음
+b.facing_right = False
+assert b._flipped("walking") is True
+assert b._flipped("idle") is False
+print("3.5 포즈 간 방향 유지 OK")
+
 # 4) 활동성 가중치
 b.set_activity(0)
 assert b._auto_states[0][1] == 10 and b._auto_states[3][1] == 12.0
@@ -104,6 +114,19 @@ assert pet._timer.interval() == ACTIVE_TICK_MS
 assert pet.x() != x0
 pet.update = _orig_update
 print("5. 펫 창: 정지 시 리페인트 0~1회 + 저FPS, 걷기 시 이동 + 고FPS OK")
+
+# 5.5) 드래그 낙하: 공중에서 시작하면 중력으로 떨어져 정확히 착지
+ground_top = pet._ground_y - pet.height()
+pet.move(pet.x(), ground_top - 250)
+pet._fall_vy = 0.0
+for _ in range(200):
+    time.sleep(0.004)
+    pet._tick()
+    if pet._fall_vy is None:
+        break
+assert pet._fall_vy is None, "낙하가 끝나지 않음"
+assert pet.y() == ground_top, (pet.y(), ground_top)
+print("5.5 드래그 낙하 착지 OK")
 
 # 6) Gemini 도구 선언 + 비Windows 가드
 from google.genai import types as genai_types
