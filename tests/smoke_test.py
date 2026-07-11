@@ -182,7 +182,8 @@ from jjanggu.mutter import Mutterer
 
 bubble = SpeechBubble()
 m = Mutterer(cfg, b, bubble, pet, chat)
-m._last_mutter = 0.0
+# 갓 부팅된 CI 러너는 monotonic이 MUTTER_GAP_S보다 작을 수 있으므로 과거로 밀어둔다
+m._last_mutter = time.monotonic() - mutter_mod.MUTTER_GAP_S - 1
 mutter_mod.MUTTER_CHANCE = 1.0
 m._random_mutter()
 assert bubble.isVisible()
