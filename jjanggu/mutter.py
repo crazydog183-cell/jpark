@@ -59,16 +59,16 @@ class Mutterer(QObject):
         self._timer.start(CHECK_MS)
 
     def _check(self) -> None:
-        if not self._config.mutter_enabled:
-            return
         if self._battery_warning():
             return
         if self._time_greeting():
             return
         self._random_mutter()
 
-    # ── 종류별 처리 ──────────────────────────────────────────────
+    # ── 종류별 처리 (각각 독립 토글) ─────────────────────────────
     def _battery_warning(self) -> bool:
+        if not self._config.battery_alert:
+            return False
         now = time.monotonic()
         if now - self._last_battery_warn < BATTERY_GAP_S:
             return False
@@ -86,6 +86,8 @@ class Mutterer(QObject):
         return False
 
     def _time_greeting(self) -> bool:
+        if not self._config.time_greeting:
+            return False
         now = datetime.datetime.now()
         today = now.date().isoformat()
         for slot, (hour, text) in GREETINGS.items():
@@ -96,6 +98,8 @@ class Mutterer(QObject):
         return False
 
     def _random_mutter(self) -> None:
+        if not self._config.mutter_enabled:
+            return
         if self._chat.isVisible():
             return  # 대화 중엔 혼잣말 금지
         if self._behavior.forced_sleep:

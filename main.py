@@ -51,8 +51,9 @@ def main() -> int:
 
     config = Config.load()
     behavior = Behavior(config.walk_speed, config.activity)
+    behavior.keep_facing = config.keep_facing
     sprites = SpriteSet(config.pet_size)
-    pet = PetWindow(sprites, behavior)
+    pet = PetWindow(sprites, behavior, config)
     pet.set_always_on_top(config.always_on_top)
     brain = Brain(config)
     chat = ChatWindow(brain)
@@ -62,6 +63,7 @@ def main() -> int:
     confirm = ConfirmBridge()
     tools.set_confirmer(confirm.confirm)
     tools.set_screen_analyzer(brain.describe_screen)  # "내 화면 봐줘" 비전 분석
+    tools.set_feature_config(config)  # 확장 기능 토글 상태 공유
 
     def open_chat() -> None:
         chat.toggle_near(pet)
@@ -73,13 +75,14 @@ def main() -> int:
         brain.reset()
         behavior.walk_speed = config.walk_speed
         behavior.set_activity(config.activity)
+        behavior.keep_facing = config.keep_facing
         pet.set_always_on_top(config.always_on_top)
         if config.pet_size != old_size:
             pet.set_sprites(SpriteSet(config.pet_size))
 
     def on_reply(reply: str) -> None:
         behavior.chat_talking(len(reply))
-        if not chat.isVisible():
+        if config.reply_bubble and not chat.isVisible():
             # 응답을 기다리다 채팅창을 닫았어도 말풍선으로 전달
             bubble.show_for(pet, reply, msecs=9000)
 

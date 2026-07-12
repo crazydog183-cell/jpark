@@ -24,11 +24,18 @@ NOT_WINDOWS_MSG = "이 기능은 Windows에서만 쓸 수 있어."
 
 _confirmer: Callable[[str], bool] | None = None
 _screen_analyzer: Callable[[bytes], str] | None = None
+_feature_config = None  # 확장 기능 토글이 담긴 Config (main에서 주입)
 
 
 def set_confirmer(fn: Callable[[str], bool]) -> None:
     global _confirmer
     _confirmer = fn
+
+
+def set_feature_config(config) -> None:
+    """확장 기능 on/off 상태를 읽을 Config 객체를 주입한다."""
+    global _feature_config
+    _feature_config = config
 
 
 def set_screen_analyzer(fn: Callable[[bytes], str]) -> None:
@@ -207,6 +214,8 @@ def analyze_screen() -> str:
     """
     if not IS_WINDOWS:
         return NOT_WINDOWS_MSG
+    if _feature_config is not None and not _feature_config.screen_analysis:
+        return "주인이 설정에서 화면 분석 기능을 꺼뒀어. 켜달라고 부탁해줘."
     if _screen_analyzer is None:
         return "화면 분석 기능이 아직 연결되지 않았어."
     import io

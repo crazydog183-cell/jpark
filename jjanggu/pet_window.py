@@ -24,7 +24,7 @@ class PetWindow(QWidget):
     settings_requested = Signal()
     quit_requested = Signal()
 
-    def __init__(self, sprites: SpriteSet, behavior: Behavior):
+    def __init__(self, sprites: SpriteSet, behavior: Behavior, config=None):
         super().__init__(
             None,
             Qt.WindowType.FramelessWindowHint
@@ -34,6 +34,7 @@ class PetWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self._sprites = sprites
         self._behavior = behavior
+        self._config = config  # 확장 기능 토글 참조 (None이면 전부 ON)
         self._pixmap = sprites.get("idle")
         self._bob = 0
         self._ground_y = 0
@@ -153,12 +154,13 @@ class PetWindow(QWidget):
         if was_drag:
             self._behavior.x = float(self.x())
             self._refresh_ground()  # span 갱신 + x 클램프
-            if self.y() < self._ground_y - self.height():
+            fall_enabled = self._config is None or self._config.fall_animation
+            if fall_enabled and self.y() < self._ground_y - self.height():
                 # 공중에서 놓았으면 중력 낙하 시작
                 self._fall_vy = 0.0
                 self._timer.setInterval(ACTIVE_TICK_MS)
             else:
-                self._behavior.startled()
+                self._behavior.startled()  # 토글 OFF면 즉시 작업표시줄로 스냅
         else:
             self.chat_requested.emit()
 

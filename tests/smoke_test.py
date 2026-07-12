@@ -215,6 +215,69 @@ assert bubble.isVisible()
 bubble.hide()
 print("9. 말풍선/혼잣말 OK")
 
+# 9.5) 확장 기능 토글
+# 방향 유지 OFF → 걷기 외 포즈는 반전 안 함
+b.keep_facing = False
+b.facing_right = True
+assert b._flipped("idle") is False and b._flipped("walking") is False
+b.keep_facing = True
+assert b._flipped("idle") is True
+
+# 낙하 애니메이션 OFF → 공중에서 놓아도 낙하 시작 안 함 (즉시 스냅)
+from PySide6.QtCore import QPoint, QPointF
+from PySide6.QtGui import QMouseEvent, Qt as _Qt
+
+cfg.fall_animation = False
+pet2 = PetWindow(sprites, b, cfg)
+pet2.show()
+ground_top2 = pet2._ground_y - pet2.height()
+pet2.move(pet2.x(), ground_top2 - 200)
+pet2._drag_offset = QPoint(0, 0)
+pet2._dragged = True
+release = QMouseEvent(
+    QMouseEvent.Type.MouseButtonRelease, QPointF(0, 0),
+    _Qt.MouseButton.LeftButton, _Qt.MouseButton.NoButton, _Qt.KeyboardModifier.NoModifier,
+)
+pet2.mouseReleaseEvent(release)
+assert pet2._fall_vy is None  # 낙하 미시작
+cfg.fall_animation = True
+
+# 시간 감각 OFF → send()가 시간 블록을 안 붙임 (키 없음 경로로 확인 불가하므로 가드만)
+cfg.time_awareness = False
+assert cfg.time_awareness is False
+cfg.time_awareness = True
+
+# 대화 기억 OFF → 저장 안 됨
+cfg.remember_chat = False
+brain3 = Brain(cfg)
+assert brain3.history == []  # 파일이 있어도 읽지 않음
+brain3._history = [{"role": "user", "text": "임시", "ts": None}]
+brain3._save_history()
+brain4 = Brain(cfg)
+assert brain4.history == []  # 파일에 안 남음
+cfg.remember_chat = True
+
+# 화면 분석 OFF → 안내 메시지 (Windows 가드보다 우선순위는 win32에서만 의미)
+tools_mod.set_feature_config(cfg)
+cfg.screen_analysis = False
+if sys.platform == "win32":
+    assert "꺼뒀" in tools_mod.analyze_screen()
+cfg.screen_analysis = True
+
+# 배터리/시간대 인사 독립 토글
+cfg.battery_alert = False
+assert m._battery_warning() is False
+cfg.time_greeting = False
+assert m._time_greeting() is False
+cfg.mutter_enabled = False
+m._last_mutter = time.monotonic() - mutter_mod.MUTTER_GAP_S - 1
+m._random_mutter()
+assert not bubble.isVisible()
+cfg.mutter_enabled = True
+cfg.battery_alert = True
+cfg.time_greeting = True
+print("9.5 확장 기능 토글 9종 가드 OK")
+
 # 10) 자동 실행 가드 + 트레이/설정창/브리지
 from jjanggu import autostart
 from jjanggu.confirm import ConfirmBridge

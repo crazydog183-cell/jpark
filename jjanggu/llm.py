@@ -61,7 +61,10 @@ class Brain:
         self._client = None
         self._chat = None
         # 항목: {"role": "user"|"model", "text": str, "ts": ISO 문자열|None}
-        self._history: list[dict] = self._load_history()
+        # remember_chat OFF면 파일을 읽지 않고 세션 메모리에서만 유지한다
+        self._history: list[dict] = (
+            self._load_history() if config.remember_chat else []
+        )
 
     @property
     def history(self) -> list[tuple[str, str]]:
@@ -102,6 +105,8 @@ class Brain:
 
     def _save_history(self) -> None:
         self._history = self._history[-HISTORY_FILE_LIMIT:]
+        if not self._config.remember_chat:
+            return  # 대화 기억 OFF: 파일에 남기지 않음
         path = self._history_path()
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -179,9 +184,12 @@ class Brain:
             return "아직 API 키가 없잖아, 집사! 설정에서 Gemini API 키부터 넣어줘. 흥!"
         try:
             now = datetime.datetime.now()
-            time_context = self._time_context(now)
             chat = self._ensure_chat()
-            response = chat.send_message(f"{time_context}\n{text}")
+            if self._config.time_awareness:
+                message = f"{self._time_context(now)}\n{text}"
+            else:
+                message = text
+            response = chat.send_message(message)
             reply = (response.text or "").strip()
             reply = reply or "…뭐라고 답해야 할지 모르겠어. 다시 말해줄래? 멍!"
             ts = now.isoformat(timespec="seconds")

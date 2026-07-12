@@ -26,6 +26,7 @@ _NATIVE_RIGHT = {WALKING}  # 원본이 오른쪽을 봄
 class Behavior:
     def __init__(self, walk_speed: float = 55.0, activity: int = 60):
         self.walk_speed = walk_speed
+        self.keep_facing = True  # False면 걷기만 반전(방향 유지 기능 OFF)
         self.set_activity(activity)
         self.x = 200.0
         self.span = (0, 800)  # 걸을 수 있는 x 범위 (창 좌측 기준)
@@ -86,10 +87,10 @@ class Behavior:
 
     def _flipped(self, state: str) -> bool:
         """진행 방향과 스프라이트 원본 방향이 다르면 True."""
-        if state in _NATIVE_LEFT:
-            return self.facing_right
         if state in _NATIVE_RIGHT:
             return not self.facing_right
+        if self.keep_facing and state in _NATIVE_LEFT:
+            return self.facing_right
         return False
 
     # ── 틱 ──────────────────────────────────────────────────────

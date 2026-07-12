@@ -23,8 +23,19 @@ class Config:
     pet_size: int = 96  # 펫(대기 포즈) 화면 높이 px
     walk_speed: float = 55.0  # px/초
     activity: int = 60  # 활동성 0(게으름)~100(활발) — 걷기/잠자기 비율
-    mutter_enabled: bool = True  # 혼잣말/시스템 알림 말풍선
     always_on_top: bool = True  # 펫 창 항상 맨 위
+
+    # ── 확장 기능 토글 (기본값 전부 ON, 설정창 '확장 기능' 탭) ──
+    mutter_enabled: bool = True  # 혼잣말 말풍선
+    battery_alert: bool = True  # 배터리 부족 경고
+    time_greeting: bool = True  # 점심/퇴근/심야 시간대 인사
+    remember_chat: bool = True  # 대화 기억 (끄면 세션 내에서만 유지)
+    time_awareness: bool = True  # 시간 감각 페르소나 ([시간 정보] 주입)
+    screen_analysis: bool = True  # 화면 비전 분석 도구
+    reply_bubble: bool = True  # 채팅창 닫힘 시 답변을 말풍선으로
+    fall_animation: bool = True  # 드래그 후 중력 낙하 애니메이션
+    keep_facing: bool = True  # 포즈가 바뀌어도 진행 방향 유지
+
     path: Path = field(default=None, repr=False, compare=False)
 
     @classmethod

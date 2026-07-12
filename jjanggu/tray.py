@@ -59,6 +59,7 @@ class SettingsDialog(QDialog):
 
         tabs = QTabWidget()
         tabs.addTab(self._build_general_tab(), "🐾 일반")
+        tabs.addTab(self._build_features_tab(), "✨ 확장 기능")
         tabs.addTab(self._build_ai_tab(), "🤖 AI")
         tabs.addTab(self._build_info_tab(), "ℹ️ 정보")
 
@@ -92,9 +93,6 @@ class SettingsDialog(QDialog):
         self._activity.setRange(0, 100)
         self._activity.setValue(self._config.activity)
 
-        self._mutter = QCheckBox("가끔 혼잣말을 하고 배터리/시간 알림을 해줘요")
-        self._mutter.setChecked(self._config.mutter_enabled)
-
         self._on_top = QCheckBox("장꾸를 항상 다른 창 위에 표시")
         self._on_top.setChecked(self._config.always_on_top)
 
@@ -109,9 +107,36 @@ class SettingsDialog(QDialog):
         form.addRow("장꾸 크기", self._size)
         form.addRow("걷는 속도", _slider_row(self._speed, " px/s"))
         form.addRow("활동성", _slider_row(self._activity))
-        form.addRow("혼잣말", self._mutter)
         form.addRow("맨 위 고정", self._on_top)
         form.addRow("자동 실행", self._autostart)
+        return tab
+
+    def _build_features_tab(self) -> QWidget:
+        """확장 기능 on/off 토글 모음. 기본 기능(펫/채팅/제어)은 항상 켜져 있다."""
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        guide = QLabel("끄면 해당 기능만 비활성화됩니다. (기본 기능은 항상 동작)")
+        guide.setWordWrap(True)
+        layout.addWidget(guide)
+
+        self._feature_boxes: dict[str, QCheckBox] = {}
+        for attr, label in (
+            ("mutter_enabled", "🗨️ 혼잣말 — 한가할 때 도도한 혼잣말 말풍선"),
+            ("battery_alert", "🔋 배터리 경고 — 15% 이하일 때 알려주기"),
+            ("time_greeting", "🕐 시간대 인사 — 점심/퇴근/심야 인사 (하루 1회)"),
+            ("remember_chat", "💾 대화 기억 — 재시작해도 지난 대화 유지"),
+            ("time_awareness", "⏰ 시간 감각 — 경과 시간 인지·시간대 반응"),
+            ("screen_analysis", "👁️ 화면 분석 — '내 화면 봐줘' 비전 분석"),
+            ("reply_bubble", "💬 말풍선 답변 — 채팅창을 닫아도 답변 전달"),
+            ("fall_animation", "🪂 낙하 애니메이션 — 드래그 후 중력 낙하"),
+            ("keep_facing", "↔️ 방향 유지 — 멈춰도 걷던 방향을 계속 봄"),
+        ):
+            box = QCheckBox(label)
+            box.setChecked(getattr(self._config, attr))
+            self._feature_boxes[attr] = box
+            layout.addWidget(box)
+        layout.addStretch()
         return tab
 
     def _build_ai_tab(self) -> QWidget:
@@ -222,8 +247,9 @@ class SettingsDialog(QDialog):
         config.pet_size = dialog._size.value()
         config.walk_speed = float(dialog._speed.value())
         config.activity = dialog._activity.value()
-        config.mutter_enabled = dialog._mutter.isChecked()
         config.always_on_top = dialog._on_top.isChecked()
+        for attr, box in dialog._feature_boxes.items():
+            setattr(config, attr, box.isChecked())
         config.save()
         if autostart.supported():
             autostart.set_enabled(dialog._autostart.isChecked())
