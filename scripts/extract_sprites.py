@@ -89,6 +89,192 @@ def flood_remove_background(img: Image.Image, tol: int = TOLERANCE) -> Image.Ima
     return img
 
 
+POCKET_GROW_TOL = 60  # 포켓 후보 영역 확장 톨러런스
+POCKET_MAX_SIZE = 1200  # 이보다 크면 몸통 밝은 털로 간주하고 보존
+POCKET_DARK_RATIO = 0.6  # 경계의 어두운 픽셀 비율이 이 이상이어야 포켓
+POCKET_DARK_DIFF = 100  # '어두운 외곽선' 판정 색 차
+
+
+def remove_enclosed_background(img: Image.Image, bg: tuple) -> Image.Image:
+    """외곽선에 완전히 둘러싸여 테두리 flood-fill이 못 닿은 배경 포켓 제거.
+
+    (예: 걷기 포즈 다리 사이 틈) 색만으로는 개의 밝은 가슴/얼굴 털과 구분이
+    안 되므로 기하학적으로 분류한다: 배경색과 거의 같은(≤8) 시드에서 영역을
+    키웠을 때 '작고, 경계가 대부분 어두운 외곽선'인 영역만 배경 포켓이다.
+    몸통의 밝은 털은 영역이 크거나 경계가 중간톤 털이라 보존된다.
+    """
+    w, h = img.size
+    px = img.load()
+
+    def diffmax(p):
+        return max(abs(p[i] - bg[i]) for i in range(3))
+
+    visited = bytearray(w * h)
+    for sy in range(h):
+        for sx in range(w):
+            p = px[sx, sy]
+            if visited[sy * w + sx] or p[3] == 0 or diffmax(p) > 8:
+                continue
+            # 시드에서 POCKET_GROW_TOL 안의 이웃으로 영역 확장
+            region = [(sx, sy)]
+            visited[sy * w + sx] = 1
+            queue = deque(region)
+            boundary: list[tuple] = []
+            oversize = False
+            while queue:
+                x, y = queue.popleft()
+                for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                    if not (0 <= nx < w and 0 <= ny < h):
+                        continue
+                    np_ = px[nx, ny]
+                    if np_[3] == 0:
+                        continue  # 이미 투명(외부와 연결) — 경계로 안 침
+                    if visited[ny * w + nx]:
+                        continue
+                    if diffmax(np_) <= POCKET_GROW_TOL:
+                        visited[ny * w + nx] = 1
+                        region.append((nx, ny))
+                        queue.append((nx, ny))
+                        if len(region) > POCKET_MAX_SIZE:
+                            oversize = True
+                            queue.clear()
+                            break
+                    else:
+                        boundary.append(np_)
+            if oversize or not boundary:
+                continue  # 몸통 밝은 털(큰 영역)은 보존
+            dark = sum(1 for p_ in boundary if diffmax(p_) >= POCKET_DARK_DIFF)
+            if dark / len(boundary) >= POCKET_DARK_RATIO:
+                for x, y in region:
+                    px[x, y] = (0, 0, 0, 0)
+    return img
+
+
+def flood_from_transparent(img: Image.Image, tol: int, bg: tuple) -> Image.Image:
+    """이미 투명해진 영역과 맞닿은 배경색 픽셀을 연쇄 제거한다.
+
+    (그림자 잔선 제거로 '아래가 열린' 다리 사이 틈 내부 정리용)
+    """
+    w, h = img.size
+    px = img.load()
+
+    def near_bg(p):
+        return all(abs(p[i] - bg[i]) <= tol for i in range(3))
+
+    seen = bytearray(w * h)
+    queue = deque()
+    for y in range(h):
+        for x in range(w):
+            p = px[x, y]
+            if p[3] == 0 or not near_bg(p) or seen[y * w + x]:
+                continue
+            for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                if not (0 <= nx < w and 0 <= ny < h) or px[nx, ny][3] == 0:
+                    seen[y * w + x] = 1
+                    queue.append((x, y))
+                    break
+    while queue:
+        x, y = queue.popleft()
+        px[x, y] = (0, 0, 0, 0)
+        for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+            if 0 <= nx < w and 0 <= ny < h and not seen[ny * w + nx]:
+                p = px[nx, ny]
+                if p[3] > 0 and near_bg(p):
+                    seen[ny * w + nx] = 1
+                    queue.append((nx, ny))
+    return img
+
+
+def strip_bottom_shadow(img: Image.Image, bg: tuple, iterations: int = 6) -> Image.Image:
+    """크롭 하단 존에서 투명과 맞닿은 그림자/배경 혼합 픽셀을 벗겨낸다.
+
+    발밑 그림자 잔선이 다리 사이 틈을 아래에서 막아 포켓으로 만들기 때문에,
+    이 선을 지워야 다음 border flood가 틈 안까지 들어갈 수 있다.
+    발 자체는 어두운 외곽선으로 둘러싸여 침식되지 않는다.
+    """
+    w, h = img.size
+    px = img.load()
+    zone_y = int(h * 0.72)
+
+    def shadowish(p):
+        return all(abs(p[i] - SHADOW[i]) <= 40 for i in range(3)) or all(
+            abs(p[i] - bg[i]) <= 45 for i in range(3)
+        )
+
+    for _ in range(iterations):
+        to_clear = []
+        for y in range(zone_y, h):
+            for x in range(w):
+                p = px[x, y]
+                if p[3] == 0 or not shadowish(p):
+                    continue
+                for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                    if not (0 <= nx < w and 0 <= ny < h) or px[nx, ny][3] == 0:
+                        to_clear.append((x, y))
+                        break
+        if not to_clear:
+            break
+        for x, y in to_clear:
+            px[x, y] = (0, 0, 0, 0)
+    return img
+
+
+def defringe(img: Image.Image, bg: tuple, loose: int = 55, iterations: int = 2) -> Image.Image:
+    """투명 영역과 맞닿은 밝은(배경 혼합) 테두리 픽셀을 벗겨낸다.
+
+    어두운 바탕화면에서 스프라이트 둘레에 보이는 흰 헤일로 제거용.
+    어두운 외곽선은 배경과 색 차가 커서(> loose) 침식되지 않는다.
+    """
+    w, h = img.size
+    px = img.load()
+    for _ in range(iterations):
+        to_clear = []
+        for y in range(h):
+            for x in range(w):
+                p = px[x, y]
+                if p[3] == 0 or not all(abs(p[i] - bg[i]) <= loose for i in range(3)):
+                    continue
+                for nx, ny in ((x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)):
+                    if not (0 <= nx < w and 0 <= ny < h) or px[nx, ny][3] == 0:
+                        to_clear.append((x, y))
+                        break
+        if not to_clear:
+            break
+        for x, y in to_clear:
+            px[x, y] = (0, 0, 0, 0)
+    return img
+
+
+def count_eroded(original: Image.Image, result: Image.Image, bg: tuple) -> int:
+    """원본에서 명백한 '개 픽셀'(배경과 색 차 >60)이었는데 투명해진 수.
+
+    다리 사이처럼 원래 배경이던 정상 구멍은 세지 않고, 얼굴/몸통 침식만 잡는다.
+    """
+    opx = original.load()
+    rpx = result.load()
+    w, h = result.size
+    eroded = 0
+    for y in range(h):
+        for x in range(w):
+            if rpx[x, y][3] == 0:
+                o = opx[x, y]
+                if any(abs(o[i] - bg[i]) > 60 for i in range(3)):
+                    eroded += 1
+    return eroded
+
+
+def count_bg_remnants(img: Image.Image, bg: tuple) -> int:
+    """배경색과 거의 같은(≤8) 불투명 픽셀 수 — 흰색 노출의 원인."""
+    px = img.load()
+    w, h = img.size
+    return sum(
+        1
+        for y in range(h)
+        for x in range(w)
+        if px[x, y][3] > 200 and all(abs(px[x, y][i] - bg[i]) <= 8 for i in range(3))
+    )
+
+
 def remove_small_islands(img: Image.Image, min_size: int = MIN_ISLAND) -> Image.Image:
     """본체와 떨어진 작은 픽셀 덩어리(말풍선 조각 등)를 지운다.
 
@@ -190,13 +376,24 @@ def main():
         for l, t, r, b in ERASE_ZONES.get(name, []):
             crop.paste(bg_color, (l - box[0], t - box[1], r - box[0], b - box[1]))
         tol = TOLERANCE_OVERRIDE.get(name, TOLERANCE)
+        original = crop.convert("RGBA")
         sprite = flood_remove_background(crop, tol)
+        sprite = strip_bottom_shadow(sprite, bg_color)
+        sprite = flood_from_transparent(sprite, tol, bg_color)  # 열린 틈 내부 정리
+        sprite = remove_enclosed_background(sprite, bg_color)
+        sprite = defringe(sprite, bg_color, loose=45, iterations=1)
+        eroded = count_eroded(original, sprite, bg_color)
+        leftover = count_bg_remnants(sprite, bg_color)
         sprite = trim(remove_small_islands(sprite))
         sprite.save(OUT_DIR / f"{name}.png")
         results[name] = sprite
-        holes = count_interior_holes(sprite)
-        flag = "  ⚠ 내부 구멍!" if holes > 40 else ""
-        print(f"{name}: {sprite.size} 내부구멍={holes}{flag}")
+        flags = ""
+        # 침식 수치에는 발밑 그림자 정리분(~70px)이 포함되므로 여유를 둔다
+        if eroded > 150:
+            flags += "  ⚠ 몸통 침식!"
+        if leftover > 40:
+            flags += "  ⚠ 배경 잔존!"
+        print(f"{name}: {sprite.size} 침식={eroded} 배경잔존={leftover}{flags}")
 
     if debug:
         pad = 10
