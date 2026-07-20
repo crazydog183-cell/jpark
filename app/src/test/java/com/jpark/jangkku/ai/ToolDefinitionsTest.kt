@@ -1,36 +1,55 @@
 package com.jpark.jangkku.ai
 
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ToolDefinitionsTest {
 
+    private fun declarations(): List<JSONObject> {
+        val array = ToolDefinitions.functionDeclarations()
+        return (0 until array.length()).map { array.getJSONObject(it) }
+    }
+
     @Test
-    fun `정의된 도구 이름이 ToolNames와 정확히 일치한다`() {
-        val definedNames = ToolDefinitions.all().map { it.name() }.toSet()
+    fun `정의된 함수 이름이 ToolNames와 정확히 일치한다`() {
+        val definedNames = declarations().map { it.getString("name") }.toSet()
         assertEquals(ToolNames.ALL, definedNames)
     }
 
     @Test
-    fun `도구 이름은 중복이 없다`() {
-        val names = ToolDefinitions.all().map { it.name() }
+    fun `함수 이름은 중복이 없다`() {
+        val names = declarations().map { it.getString("name") }
         assertEquals(names.size, names.toSet().size)
     }
 
     @Test
-    fun `모든 도구에 설명이 있다`() {
-        ToolDefinitions.all().forEach { tool ->
+    fun `모든 함수에 설명이 있다`() {
+        declarations().forEach { declaration ->
             assertTrue(
-                "도구 ${tool.name()}에 설명이 없습니다",
-                tool.description().isPresent && tool.description().get().isNotBlank(),
+                "함수 ${declaration.getString("name")}에 설명이 없습니다",
+                declaration.getString("description").isNotBlank(),
             )
         }
     }
 
     @Test
-    fun `직렬화 시 유효한 스키마 구조를 가진다`() {
-        // Tool 객체가 SDK 검증을 통과하는지 확인 (잘못된 스키마면 예외 발생)
-        ToolDefinitions.all().forEach { it.validate() }
+    fun `parameters가 있으면 object 타입이고 required 키는 properties에 존재한다`() {
+        declarations().forEach { declaration ->
+            val parameters = declaration.optJSONObject("parameters") ?: return@forEach
+            assertEquals("object", parameters.getString("type"))
+            val properties = parameters.getJSONObject("properties")
+            val required = parameters.optJSONArray("required")
+            if (required != null) {
+                for (i in 0 until required.length()) {
+                    val key = required.getString(i)
+                    assertTrue(
+                        "${declaration.getString("name")}의 required '$key'가 properties에 없습니다",
+                        properties.has(key),
+                    )
+                }
+            }
+        }
     }
 }

@@ -3,7 +3,7 @@
 바탕화면 위를 떠다니는 안드로이드 AI 펫 앱입니다. 장꾸는:
 
 - **플로팅 버블 펫** — 홈 화면 위 어디든 드래그해서 옮길 수 있고, 손을 떼면 화면 가장자리에 착 붙어요. 상태에 따라 표정도 바뀝니다 (🐹 대기 / 🤔 생각 중 / 😆 대화 중).
-- **AI 챗봇** — 버블을 탭하면 채팅창이 열리고, Claude API로 대화합니다.
+- **AI 챗봇** — 버블을 탭하면 채팅창이 열리고, Google Gemini API로 대화합니다.
 - **스마트폰 제어** — 대화 중에 AI가 직접 폰을 조작합니다 (tool use).
   예: "손전등 켜줘", "볼륨 30으로 줄여줘", "유튜브 실행해 줘", "무음으로 바꿔 줘"
 - **일정 리마인더** — "내일 아침 9시에 회의 알려줘"라고 말하면 리마인더를 등록하고 시간이 되면 알림을 보내줍니다. 재부팅해도 유지됩니다.
@@ -49,9 +49,9 @@
 
 ## 사용 방법
 
-1. **Claude API 키 발급** — [platform.claude.com](https://platform.claude.com)에서 API 키를 만듭니다 (`sk-ant-...` 형식).
+1. **Gemini API 키 발급** — [Google AI Studio](https://aistudio.google.com/apikey)에서 무료로 API 키를 만듭니다 (`AIza...` 형식, 무료 티어 제공).
 2. 앱을 설치하고 실행 → API 키를 입력하고 **키 저장**을 누릅니다.
-   (키는 기기 내 `EncryptedSharedPreferences`에 암호화 저장되며 외부로 전송되지 않습니다 — Anthropic API 호출에만 사용)
+   (키는 기기 내 `EncryptedSharedPreferences`에 암호화 저장되며 외부로 전송되지 않습니다 — Gemini API 호출에만 사용)
 3. 권한을 켭니다:
    - **다른 앱 위에 표시** (필수) — 플로팅 버블 표시
    - **알림 표시** / **정확한 알람** — 리마인더 기능
@@ -72,7 +72,7 @@
 ## 기술 스택
 
 - Kotlin, minSdk 26 (Android 8.0) / targetSdk 34
-- [Anthropic Java SDK](https://github.com/anthropics/anthropic-sdk-java) `com.anthropic:anthropic-java` — Claude API (`claude-opus-4-8`) + tool use 에이전트 루프
+- [Gemini API](https://ai.google.dev/gemini-api/docs) (`gemini-2.5-flash`) — REST `generateContent` + function calling 에이전트 루프 (OkHttp)
 - Room + AlarmManager — 리마인더 저장/알람
 - `WindowManager` 오버레이 + Foreground Service — 플로팅 버블
 - `NotificationListenerService` — 알림 읽기
@@ -80,5 +80,5 @@
 ## 주의 사항
 
 - API 키를 앱에 직접 저장하는 BYO-key 방식은 **개인용 프로젝트** 전제입니다. 스토어 배포용이라면 서버 프록시를 두세요.
-- API 사용량에 따라 Anthropic 요금이 발생합니다. 짧은 대화 위주로 설계되어 있습니다 (`max_tokens=2048`, 히스토리 자동 정리).
+- Gemini 무료 티어 한도를 넘으면 요금이 발생할 수 있습니다. 짧은 대화 위주로 설계되어 있습니다 (`maxOutputTokens=2048`, 히스토리 자동 정리).
 - 와이파이/블루투스는 최신 안드로이드에서 앱이 직접 토글할 수 없어, 해당 설정 화면을 열어주는 방식으로 동작합니다.

@@ -146,7 +146,7 @@ class PetOverlayService : Service() {
         windowManager.addView(panel, params)
 
         if (chatEngine == null) {
-            panel.addMessage("API 키가 설정되지 않았어… 설정 앱에서 Claude API 키를 저장해 줘! 😢", fromUser = false)
+            panel.addMessage("API 키가 설정되지 않았어… 설정 앱에서 Gemini API 키를 저장해 줘! 😢", fromUser = false)
             panel.setInputEnabled(false)
         }
     }

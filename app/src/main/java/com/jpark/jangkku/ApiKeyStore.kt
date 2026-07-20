@@ -4,11 +4,11 @@ import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
-/** Claude API 키를 기기 내 암호화 저장소에 보관한다. */
+/** Gemini API 키를 기기 내 암호화 저장소에 보관한다. */
 object ApiKeyStore {
 
     private const val PREF_FILE = "jangkku_secure"
-    private const val KEY_API = "anthropic_api_key"
+    private const val KEY_API = "gemini_api_key"
 
     private fun prefs(context: Context) = EncryptedSharedPreferences.create(
         context,

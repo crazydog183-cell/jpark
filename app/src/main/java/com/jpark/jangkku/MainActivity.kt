@@ -55,9 +55,9 @@ class MainActivity : Activity() {
         })
 
         // ── API 키 ──────────────────────────────
-        root.addView(sectionTitle("1. Claude API 키"))
+        root.addView(sectionTitle("1. Gemini API 키"))
         apiKeyInput = EditText(this).apply {
-            hint = "sk-ant-... 형식의 API 키"
+            hint = "AIza... 형식의 키 (aistudio.google.com에서 무료 발급)"
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
             if (ApiKeyStore.load(this@MainActivity) != null) hint = "저장된 키가 있어요 (변경하려면 입력)"
         }
@@ -134,7 +134,7 @@ class MainActivity : Activity() {
 
     private fun startPet() {
         if (ApiKeyStore.load(this) == null) {
-            Toast.makeText(this, "먼저 Claude API 키를 저장해 주세요!", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "먼저 Gemini API 키를 저장해 주세요!", Toast.LENGTH_LONG).show()
             return
         }
         if (!Settings.canDrawOverlays(this)) {
